@@ -40,6 +40,7 @@ Cinco VM con dominio interno `nodosur.tas`. La mayoría de los servicios corren 
 | `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana, Alertmanager, respaldos            |
 
 ```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 260}}}%%
 flowchart TB
     C(["👥 Clientes"])
 
@@ -72,7 +73,7 @@ flowchart TB
     LB -- "least_conn" --> WP3
     WP2 --> DB & NFS
     WP3 --> DB & NFS
-    DB & NFS <-- "SSH 22 · dump + tar" --- BK
+    VM4 <-- "SSH 22 · dump + tar" --- VM5
 
     classDef front fill:#e3f2fd,stroke:#1565c0,color:#0d1b2a
     classDef web fill:#e8f5e9,stroke:#2e7d32,color:#0d1b2a
