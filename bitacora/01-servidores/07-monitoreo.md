@@ -1,8 +1,8 @@
-# Instalación del monitoreo con Prometheus y Grafana en `tas05vm5` (26/10/2026 - 13/11/2026)
+# Instalación del monitoreo con Prometheus y Grafana en `tas05vm5` (15/10/2026 - 20/10/2026)
 
 **Servidor:** `tas05vm5` (10.33.199.46) · **Servicios:** Prometheus, Grafana, Alertmanager, Blackbox exporter (contenedores) · **Agentes:** node_exporter en todas las VM
 
-## 26/10/2026 — node_exporter en todas las VM
+## 15/10/2026 — node_exporter en todas las VM
 
 Se instala en las 5 VM para obtener CPU, memoria, disco y red:
 
@@ -13,7 +13,7 @@ curl -s localhost:9100/metrics | head
 sudo ufw allow from 10.33.199.46 to any port 9100 proto tcp   # solo el monitor
 ```
 
-## 27/10/2026 — Exporter de MariaDB en `tas05vm4`
+## 15/10/2026 — Exporter de MariaDB en `tas05vm4`
 
 ```sql
 CREATE USER 'exporter'@'localhost' IDENTIFIED BY '<contraseña>' WITH MAX_USER_CONNECTIONS 3;
@@ -27,14 +27,14 @@ sudo systemctl enable --now prometheus-mysqld-exporter
 sudo ufw allow from 10.33.199.46 to any port 9104 proto tcp
 ```
 
-## 28/10/2026 — Estructura en `tas05vm5`
+## 15/10/2026 — Estructura en `tas05vm5`
 
 ```bash
 mkdir -p ~/servicios/monitoreo/{prometheus,alertmanager,blackbox,grafana}
 cd ~/servicios/monitoreo
 ```
 
-## 29/10/2026 — Configuración de Prometheus
+## 16/10/2026 — Configuración de Prometheus
 
 `prometheus/prometheus.yml`:
 
@@ -83,7 +83,7 @@ scrape_configs:
         replacement: blackbox:9115
 ```
 
-## 30/10/2026 — Reglas de alerta
+## 16/10/2026 — Reglas de alerta
 
 `prometheus/alertas.yml` (alertas en menos de 5 minutos, según requerimiento):
 
@@ -113,7 +113,7 @@ groups:
         labels: { severity: advertencia }
 ```
 
-## 02/11/2026 — Alertmanager y Blackbox
+## 19/10/2026 — Alertmanager y Blackbox
 
 `alertmanager/alertmanager.yml` (canal de correo; se puede cambiar por Telegram/Discord):
 
@@ -147,7 +147,7 @@ modules:
 
 (`ca.crt` es la CA propia generada en la etapa del balanceador.)
 
-## 03/11/2026 — Docker Compose
+## 19/10/2026 — Docker Compose
 
 ```yaml
 services:
@@ -196,7 +196,7 @@ docker compose up -d
 docker compose ps
 ```
 
-## 04/11/2026 — Firewall del monitor
+## 19/10/2026 — Firewall del monitor
 
 Paneles accesibles solo desde la red interna:
 
@@ -205,13 +205,13 @@ sudo ufw allow from 10.33.199.0/24 to any port 3000 proto tcp
 sudo ufw allow from 10.33.199.0/24 to any port 9090 proto tcp
 ```
 
-## 05/11/2026 - 06/11/2026 — Grafana
+## 20/10/2026 — Grafana
 
 1. Se ingresa a `http://10.33.199.46:3000`, se agrega Prometheus como fuente de datos (`http://prometheus:9090`).
 2. Se importan los dashboards **Node Exporter Full** (ID 1860) y **MySQL Overview** (ID 7362).
 3. Se crea un panel propio con `probe_success`, `probe_duration_seconds` y días restantes del certificado.
 
-## 09/11/2026 - 10/11/2026 — Pruebas de alertas
+## 20/10/2026 — Pruebas de alertas
 
 | Prueba | Acción | Resultado esperado |
 | --- | --- | --- |
@@ -221,7 +221,7 @@ sudo ufw allow from 10.33.199.0/24 to any port 9090 proto tcp
 
 Se registra en cada caso la hora de la falla y la hora de llegada del correo.
 
-## 11/11/2026 - 13/11/2026 — Logs
+## 20/10/2026 — Logs
 
 Se revisan los logs relevantes y se dejan ubicados para la entrega de observabilidad:
 

@@ -1,9 +1,9 @@
-# Respaldos y prueba de restauración (16/11/2026 - 21/11/2026)
+# Respaldos y prueba de restauración (21/10/2026 - 23/10/2026)
 
 **Servidor:** `tas05vm4` (10.33.199.45) como origen · **Copia separada:** `tas05vm5` (10.33.199.46)
 **Objetivos:** respaldo diario, retención ≥ 30 días, RPO ≤ 24 h, RTO ≤ 60 min
 
-## 16/11/2026 — Script de respaldo
+## 21/10/2026 — Script de respaldo
 
 `/usr/local/bin/respaldo_nodosur.sh`:
 
@@ -34,7 +34,7 @@ sudo /usr/local/bin/respaldo_nodosur.sh
 ls -lh /srv/respaldos
 ```
 
-## 17/11/2026 — Copia en ubicación separada
+## 21/10/2026 — Copia en ubicación separada
 
 Se crea un usuario `respaldo` en vm5 con llave SSH dedicada y se sincroniza la carpeta:
 
@@ -47,7 +47,7 @@ rsync -az --delete -e "ssh -i /root/.ssh/respaldo" /srv/respaldos/ respaldo@10.3
 
 Se agrega la línea de `rsync` al final del script.
 
-## 18/11/2026 — Programación diaria
+## 21/10/2026 — Programación diaria
 
 ```bash
 sudo crontab -e
@@ -57,7 +57,7 @@ sudo crontab -e
 
 Las configuraciones de cada VM (`~/servicios/*`, sin `.env` ni llaves) quedan versionadas en el repositorio, por lo que no se respaldan aparte.
 
-## 19/11/2026 — Verificación de integridad
+## 22/10/2026 — Verificación de integridad
 
 ```bash
 cd /srv/respaldos
@@ -66,7 +66,7 @@ gunzip -t db_<FECHA>.sql.gz && echo "dump OK"
 tar -tzf wp-content_<FECHA>.tar.gz > /dev/null && echo "tar OK"
 ```
 
-## 20/11/2026 — Prueba de restauración (ambiente controlado)
+## 22/10/2026 — Prueba de restauración (ambiente controlado)
 
 Se restaura en una base temporal para no tocar producción y se mide el tiempo:
 
@@ -87,7 +87,7 @@ Procedimiento de restauración real (runbook):
 3. Restaurar `/srv/nfs/wp-content` desde el último `.tar.gz`.
 4. Levantar los backends y verificar `https://www.nodosur.tas`.
 
-## 21/11/2026 — Registro de resultados
+## 23/10/2026 — Registro de resultados
 
 - Se registra el tiempo total de restauración y se compara con el RTO de 60 min.
 - La pérdida máxima de datos corresponde al intervalo entre respaldos (24 h), cumpliendo el RPO.

@@ -1,8 +1,8 @@
-# Instalación del balanceador Nginx con HTTPS en `tas05vm1` (05/10/2026 - 22/10/2026)
+# Instalación del balanceador Nginx con HTTPS en `tas05vm1` (05/10/2026 - 14/10/2026)
 
 **Servidor:** `tas05vm1` (10.33.199.42) · **Servicio:** Nginx como proxy inverso y balanceador en contenedor · **Puertos:** 80 y 443
 
-> Inicialmente se planificó HAProxy (informe de la entrega 1). Entre el 05/10 y el 07/10 se hizo una prueba con HAProxy y luego se migró a Nginx. La justificación completa está en `decisiones/03-balanceador.md` y `decisiones/04-servidor_web.md`.
+> Inicialmente se planificó HAProxy (informe de la entrega 1). Entre el 05/10 y el 06/10 se hizo una prueba con HAProxy y luego se migró a Nginx. La justificación completa está en `decisiones/03-balanceador.md` y `decisiones/04-servidor_web.md`.
 
 ## 05/10/2026 — Prueba inicial con HAProxy
 
@@ -13,7 +13,7 @@ docker run -d --name haproxy-test -p 8080:80 -v $PWD/haproxy.cfg:/usr/local/etc/
 
 Se logra balancear HTTP entre ambos backends, pero la configuración de TLS, redirección y cabeceras se vuelve más larga que la equivalente en Nginx, que el equipo ya usaba en los backends.
 
-## 07/10/2026 — Decisión y limpieza
+## 06/10/2026 — Decisión y limpieza
 
 ```bash
 docker rm -f haproxy-test
@@ -21,14 +21,14 @@ docker rm -f haproxy-test
 
 Se decide usar Nginx para mantener una sola tecnología de servidor web/proxy en toda la plataforma.
 
-## 08/10/2026 — Estructura del servicio
+## 06/10/2026 — Estructura del servicio
 
 ```bash
 mkdir -p ~/servicios/nginx/{conf.d,certs,logs}
 cd ~/servicios/nginx
 ```
 
-## 09/10/2026 — Certificado TLS
+## 07/10/2026 — Certificado TLS
 
 Como `nodosur.tas` es un dominio interno, no se puede usar Let's Encrypt. Se genera una CA propia y un certificado firmado por ella:
 
@@ -45,7 +45,7 @@ chmod 600 *.key
 
 `ca.crt` se instala en los equipos cliente para que el navegador no muestre advertencias. Las llaves privadas no se versionan.
 
-## 13/10/2026 — Configuración del balanceador
+## 08/10/2026 — Configuración del balanceador
 
 `conf.d/nodosur.conf`:
 
@@ -100,7 +100,7 @@ server {
 - `max_fails` / `fail_timeout`: si un backend falla 3 veces en 10 s, se retira durante 10 s.
 - `proxy_next_upstream`: si un backend no responde, la misma petición se reintenta en el otro, sin que el usuario vea el error.
 
-## 14/10/2026 — Docker Compose
+## 08/10/2026 — Docker Compose
 
 `docker-compose.yaml`:
 
@@ -125,7 +125,7 @@ docker compose up -d
 docker logs nginx-lb
 ```
 
-## 15/10/2026 — Firewall
+## 09/10/2026 — Firewall
 
 ```bash
 sudo ufw allow 80/tcp
@@ -133,7 +133,9 @@ sudo ufw allow 443/tcp
 sudo ufw status numbered
 ```
 
-## 16/10/2026 — Pruebas de publicación
+_12/10 feriado, sin avance._
+
+## 13/10/2026 — Pruebas de publicación
 
 ```bash
 curl -I http://www.nodosur.tas                        # 301 -> https
@@ -141,7 +143,7 @@ curl --cacert certs/ca.crt -I https://www.nodosur.tas # 200
 openssl s_client -connect www.nodosur.tas:443 -servername www.nodosur.tas </dev/null | grep -E 'Protocol|subject'
 ```
 
-## 19/10/2026 — Prueba de caída de un backend
+## 13/10/2026 — Prueba de caída de un backend
 
 1. Se lanza tráfico continuo desde vm5:
 
@@ -153,11 +155,11 @@ openssl s_client -connect www.nodosur.tas:443 -servername www.nodosur.tas </dev/
 3. Se vuelve a levantar el backend 1 y, pasado `fail_timeout`, vuelve a recibir tráfico.
 4. Se repite la prueba con el backend 2.
 
-## 20/10/2026 - 21/10/2026 — Caída de la navegación
+## 13/10/2026 - 14/10/2026 — Caída de la navegación
 
 Durante las pruebas se cayó la navegación del sitio a través del balanceador. El análisis está en `bitacora/03-situaciones_de_error/01-caida_por_balanceador.md`.
 
-## 22/10/2026 — Recarga sin corte
+## 14/10/2026 — Recarga sin corte
 
 Cualquier cambio de configuración se aplica validando primero y recargando en caliente (sin cortar conexiones):
 

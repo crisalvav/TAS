@@ -1,10 +1,10 @@
 # Decisión: Nginx en lugar de HAProxy como balanceador
 
-**Fecha de decisión:** 07/10/2026 · **Estado:** aceptada · **Servidor afectado:** `tas05vm1`
+**Fecha de decisión:** 06/10/2026 · **Estado:** aceptada · **Servidor afectado:** `tas05vm1`
 
 ## Contexto
 
-En el informe de la entrega 1 se propuso **HAProxy** como balanceador frente a los dos backends WordPress (`tas05vm2` y `tas05vm3`). Al implementar la entrega 3 (publicación resiliente y seguridad) se probó HAProxy entre el 05/10 y el 07/10 y se comparó con **Nginx**, que el equipo ya estaba usando como servidor web en los backends.
+En el informe de la entrega 1 se propuso **HAProxy** como balanceador frente a los dos backends WordPress (`tas05vm2` y `tas05vm3`). Al implementar la entrega 3 (publicación resiliente y seguridad) se probó HAProxy entre el 05/10 y el 06/10 y se comparó con **Nginx**, que el equipo ya estaba usando como servidor web en los backends.
 
 El balanceador debía cumplir:
 
@@ -37,7 +37,7 @@ Se eligió **Nginx** como balanceador y proxy inverso.
 ## Justificación
 
 - **Una sola tecnología.** Los backends ya usan Nginx delante de PHP-FPM (ver `decisiones/04-servidor_web.md`). Usar Nginx también en el balanceador significa que cualquier integrante puede leer, validar y diagnosticar todas las capas con la misma sintaxis y el mismo formato de logs. Esto apoya el requisito del curso de que todo comando pueda ser explicado por cualquier integrante.
-- **Cubre los requisitos.** Con `upstream`, `least_conn`, `max_fails`/`fail_timeout` y `proxy_next_upstream` se reparte la carga y, si un backend cae, la petición se reintenta en el otro. Esto se validó el 19/10/2026 deteniendo cada backend con tráfico continuo: las respuestas siguieron en `200`.
+- **Cubre los requisitos.** Con `upstream`, `least_conn`, `max_fails`/`fail_timeout` y `proxy_next_upstream` se reparte la carga y, si un backend cae, la petición se reintenta en el otro. Esto se validó el 13/10/2026 deteniendo cada backend con tráfico continuo: las respuestas siguieron en `200`.
 - **Menos configuración para TLS y cabeceras.** Redirección a HTTPS, HSTS y cabeceras `X-Forwarded-*` quedan en un solo archivo corto.
 - **Escala de la plataforma.** Con dos backends y el tráfico esperado de una pyme, el mayor rendimiento de HAProxy en escenarios de alta concurrencia no es un factor decisivo.
 
