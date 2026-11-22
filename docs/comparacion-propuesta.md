@@ -109,7 +109,7 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 +--------------- tas05vm1 · 10.33.199.42 ----------------+
 | BIND9: solo resuelve      Nginx balanceador TLS        |
 +----------------------------------------+---------------+
-                                         | least_conn · 8000/TCP · reintento
+       least_conn · 8000/TCP · reintento |
               +--------------------------+--+
               v                             v
  +---- tas05vm2 · .43 ----+    +---- tas05vm3 · .44 ----+
@@ -123,13 +123,13 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 | MariaDB (3306, sin Docker)                             |
 | NFS /srv/nfs/wp-content (datos vivos de vm2/vm3)       |
 +----------------------------+---------------------------+
-                             ^ SSH 22 desde vm5: dump + tar (03:00)
+                             ^ SSH 22 desde vm5: dump + tar
                              |
 +--------------- tas05vm5 · 10.33.199.46 ----------------+
 | Prometheus · Alertmanager · Grafana · Blackbox         |
 | Respaldos: /srv/respaldos (30 días)                    |
 +--------------------------------------------------------+
-  Consulta 9100 en las 5 VM, 9104 en vm4 y /healthz en vm2/vm3
+  vm5 consulta 9100 (todas), 9104 (vm4) y /healthz
 ```
 
 | VM | Rol | Servicios | En contenedor |

@@ -20,15 +20,22 @@ _**Obs**: considerar que la mayoria de los servicios estan dockerizados(desplega
 
 ```
 1) Resolución (solo el nombre, sin tráfico web)
-   Cliente --- consulta DNS 53/UDP ------------> BIND9 (vm1)
-   Cliente <-- www.nodosur.tas = 10.33.199.42 -- BIND9 (vm1)
+   Cliente --- consulta DNS 53/UDP ---> BIND9 (vm1)
+   Cliente <-- IP 10.33.199.42 -------- BIND9 (vm1)
 
-2) Petición web (conexión directa al balanceador)
-   Cliente --- HTTPS 443 ---> Nginx balanceador (vm1)   (HTTP 80 -> 301)
-                              |  least_conn · 8000/TCP · reintento en el otro backend
-                              +--> vm2:8000 (Nginx + WordPress) --+
-                              +--> vm3:8000 (Nginx + WordPress) --+--> MariaDB vm4:3306
-                                                                  +--> NFS vm4:/srv/nfs/wp-content
+2) Petición web (directo al balanceador)
+   Cliente --- HTTPS 443 ---> Nginx (vm1)
+                                |  80 -> 301 a HTTPS
+                                |  least_conn · 8000/TCP
+                                |  reintento en el otro nodo
+                    +-----------+-----------+
+                    v                       v
+                vm2:8000                vm3:8000
+            Nginx + WordPress       Nginx + WordPress
+                    |                       |
+                    +-----------+-----------+
+                                v
+              vm4: MariaDB 3306 + NFS wp-content
 ```
 
 - HTTP (80) redirige a HTTPS (301). Certificado firmado por una CA propia (dominio interno `nodosur.tas`).

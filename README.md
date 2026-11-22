@@ -39,17 +39,50 @@ Cinco VM con dominio interno `nodosur.tas`. La mayoría de los servicios corren 
 | `tas05vm4` | Base de datos              | 10.33.199.45 | MariaDB (3306), NFS `wp-content`                        |
 | `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana, Alertmanager, respaldos            |
 
-```
-1) Resolución (solo el nombre, sin tráfico web)
-   Cliente --- consulta DNS 53/UDP ------------> BIND9 (vm1)
-   Cliente <-- www.nodosur.tas = 10.33.199.42 -- BIND9 (vm1)
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 260}}}%%
+flowchart TB
+    C(["👥 Clientes"])
 
-2) Petición web (conexión directa al balanceador)
-   Cliente --- HTTPS 443 ---> Nginx balanceador (vm1)   (HTTP 80 -> 301)
-                              |  least_conn · 8000/TCP · reintento en el otro backend
-                              +--> vm2:8000 (Nginx + WordPress) --+
-                              +--> vm3:8000 (Nginx + WordPress) --+--> MariaDB vm4:3306
-                                                                  +--> NFS vm4:/srv/nfs/wp-content
+    subgraph VM1["🖧 tas05vm1 · 10.33.199.42 · frontend"]
+        DNS["BIND9<br/>DNS · 53"]
+        LB["Nginx<br/>balanceador TLS · 443"]
+    end
+
+    subgraph VM2["tas05vm2 · .43 · CMS 1"]
+        WP2["Nginx + PHP-FPM<br/>WordPress · 8000"]
+    end
+
+    subgraph VM3["tas05vm3 · .44 · CMS 2"]
+        WP3["Nginx + PHP-FPM<br/>WordPress · 8000"]
+    end
+
+    subgraph VM4["🗄 tas05vm4 · 10.33.199.45 · datos"]
+        DB[("MariaDB<br/>3306")]
+        NFS[("NFS<br/>wp-content")]
+    end
+
+    subgraph VM5["📊 tas05vm5 · 10.33.199.46 · monitoreo y respaldos"]
+        MON["Prometheus · Alertmanager<br/>Grafana · Blackbox"]
+        BK["Respaldos diarios<br/>/srv/respaldos · 30 días"]
+    end
+
+    C <-. "1 · consulta DNS → IP de vm1" .-> DNS
+    C == "2 · HTTPS 443" ==> LB
+    LB -- "least_conn" --> WP2
+    LB -- "least_conn" --> WP3
+    WP2 --> DB & NFS
+    WP3 --> DB & NFS
+    VM4 -- "vm5 entra por SSH 22 · copia dump + tar" --> VM5
+
+    classDef front fill:#e3f2fd,stroke:#1565c0,color:#0d1b2a
+    classDef web fill:#e8f5e9,stroke:#2e7d32,color:#0d1b2a
+    classDef data fill:#f3e5f5,stroke:#8e24aa,color:#0d1b2a
+    classDef ops fill:#fff3e0,stroke:#e65100,color:#0d1b2a
+    class DNS,LB front
+    class WP2,WP3 web
+    class DB,NFS data
+    class MON,BK ops
 ```
 
 Detalle de puertos, firewall, respaldos y puntos únicos de falla en [`infraestructura/infraestructura.md`](infraestructura/infraestructura.md).
