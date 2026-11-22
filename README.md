@@ -39,35 +39,49 @@ Cinco VM con dominio interno `nodosur.tas`. La mayoría de los servicios corren 
 | `tas05vm4` | Base de datos              | 10.33.199.45 | MariaDB (3306), NFS `wp-content`                        |
 | `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana, Alertmanager, respaldos            |
 
-```
-                       Clientes
-(1) DNS 53/UDP v ^                       (2) HTTPS 443
-               | |  IP de vm1            |   (80 -> 301)
-               v |                       v
-+--------------- tas05vm1 · 10.33.199.42 ----------------+
-| BIND9: solo resuelve      Nginx balanceador TLS        |
-+----------------------------------------+---------------+
-       least_conn · 8000/TCP · reintento |
-              +--------------------------+--+
-              v                             v
- +---- tas05vm2 · .43 ----+    +---- tas05vm3 · .44 ----+
- | Nginx + PHP-FPM        |    | Nginx + PHP-FPM        |
- | WordPress/Woo :8000    |    | WordPress/Woo :8000    |
- +------------+-----------+    +------------+-----------+
-              |    3306 (MariaDB) · NFS     |
-              +--------------+--------------+
-                             v
-+--------------- tas05vm4 · 10.33.199.45 ----------------+
-| MariaDB (3306, sin Docker)                             |
-| NFS /srv/nfs/wp-content (datos vivos de vm2/vm3)       |
-+----------------------------+---------------------------+
-                             ^ SSH 22 desde vm5: dump + tar
-                             |
-+--------------- tas05vm5 · 10.33.199.46 ----------------+
-| Prometheus · Alertmanager · Grafana · Blackbox         |
-| Respaldos: /srv/respaldos (30 días)                    |
-+--------------------------------------------------------+
-  vm5 consulta 9100 (todas), 9104 (vm4) y /healthz
+```mermaid
+flowchart TB
+    C(["👥 Clientes"])
+
+    subgraph VM1["🖧 tas05vm1 · 10.33.199.42 · frontend"]
+        DNS["BIND9<br/>DNS · 53"]
+        LB["Nginx<br/>balanceador TLS · 443"]
+    end
+
+    subgraph VM2["tas05vm2 · .43 · CMS 1"]
+        WP2["Nginx + PHP-FPM<br/>WordPress · 8000"]
+    end
+
+    subgraph VM3["tas05vm3 · .44 · CMS 2"]
+        WP3["Nginx + PHP-FPM<br/>WordPress · 8000"]
+    end
+
+    subgraph VM4["🗄 tas05vm4 · 10.33.199.45 · datos"]
+        DB[("MariaDB<br/>3306")]
+        NFS[("NFS<br/>wp-content")]
+    end
+
+    subgraph VM5["📊 tas05vm5 · 10.33.199.46 · monitoreo y respaldos"]
+        MON["Prometheus · Alertmanager<br/>Grafana · Blackbox"]
+        BK["Respaldos diarios<br/>/srv/respaldos · 30 días"]
+    end
+
+    C <-. "1 · consulta DNS → IP de vm1" .-> DNS
+    C == "2 · HTTPS 443" ==> LB
+    LB -- "least_conn" --> WP2
+    LB -- "least_conn" --> WP3
+    WP2 --> DB & NFS
+    WP3 --> DB & NFS
+    BK -- "SSH 22 · dump + tar" --> VM4
+
+    classDef front fill:#e3f2fd,stroke:#1565c0,color:#0d1b2a
+    classDef web fill:#e8f5e9,stroke:#2e7d32,color:#0d1b2a
+    classDef data fill:#f3e5f5,stroke:#8e24aa,color:#0d1b2a
+    classDef ops fill:#fff3e0,stroke:#e65100,color:#0d1b2a
+    class DNS,LB front
+    class WP2,WP3 web
+    class DB,NFS data
+    class MON,BK ops
 ```
 
 Detalle de puertos, firewall, respaldos y puntos únicos de falla en [`infraestructura/infraestructura.md`](infraestructura/infraestructura.md).
