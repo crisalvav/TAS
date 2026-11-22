@@ -22,7 +22,7 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 | Detección de backend caído | Health checks activos de HAProxy | Chequeo pasivo de Nginx + reintento + sondas Blackbox | Sí |
 | Monitoreo | Prometheus + Grafana | Prometheus, Grafana, Alertmanager, Blackbox y exporters en vm5 | Se amplió |
 | Logs | Logs centralizados (syslog 6514) | Logs locales en cada VM | Sí (no implementado) |
-| Respaldos | Diarios, 30 días, copia separada | Script diario con `mariadb-dump` + `tar` + `sha256`, copia por `rsync` a vm5 | Se cumplió |
+| Respaldos | Diarios, 30 días, copia separada | Script diario con `mariadb-dump` + `tar` + `sha256`, respaldos guardados en vm5 | Se cumplió |
 | MFA en WordPress | Propuesto | Sin registro en bitácora | Pendiente |
 | SSH solo con llave | Propuesto | Puerto 22 "habilitado"; sin registro de deshabilitar contraseñas | Pendiente |
 
@@ -94,8 +94,8 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 ### 2.11 Respaldos
 
 - **Propuesta:** respaldos diarios de base de datos, archivos y configuración, retención de 30 días o más, copia separada, RPO ≤ 24 h y RTO ≤ 60 min.
-- **Implementado** (21/10 al 23/10/2026): script `/usr/local/bin/respaldo_nodosur.sh` en vm4, programado con cron a las 03:00. Hace `mariadb-dump --single-transaction` y un `tar` de `wp-content`, genera sumas `sha256`, borra lo que tenga más de 30 días y copia con `rsync` a vm5. La restauración se probó en una base temporal. La configuración de cada VM se respalda versionándola en Git.
-- **Diferencia:** la "copia separada" está en vm5, dentro del mismo laboratorio; no es una copia fuera del sitio. Además falta la alerta si el respaldo del día no se generó (pendiente anotado en la bitácora).
+- **Implementado** (21/10 al 23/10/2026): script `/usr/local/bin/respaldo_nodosur.sh` en vm5, programado con cron a las 03:00. Por SSH a vm4 hace `mariadb-dump --single-transaction` y un `tar` de `wp-content`, guarda ambos en vm5, genera sumas `sha256` y borra lo que tenga más de 30 días. La restauración se probó en una base temporal. La configuración de cada VM se respalda versionándola en Git.
+- **Diferencia:** los respaldos quedan en vm5, separados de la base de datos pero dentro del mismo laboratorio; no es una copia fuera del sitio. Además falta la alerta si el respaldo del día no se generó (pendiente anotado en la bitácora).
 
 ---
 
@@ -117,7 +117,7 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
           └──────── 3306 (MariaDB) · NFS ────────────┘
                              ▼
 ┌───────────── tas05vm4 · 10.33.199.45 ─────────────┐
-│ MariaDB (sin Docker) · NFS wp-content             │──rsync──┐
+│ MariaDB (sin Docker) · NFS wp-content             │◄──ssh───┐
 └────────────────────────────────────────────────────┘        ▼
 ┌───────────── tas05vm5 · 10.33.199.46 ─────────────────────────┐
 │ Prometheus · Alertmanager · Grafana · Blackbox · respaldos      │

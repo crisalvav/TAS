@@ -45,9 +45,9 @@ Cliente ──HTTPS 443──> Nginx balanceador (vm1)
 
 ## Respaldos
 
-- Script `/usr/local/bin/respaldo_nodosur.sh` en vm4, diario a las 03:00 (cron).
+- Script `/usr/local/bin/respaldo_nodosur.sh` en vm5, diario a las 03:00 (cron). Se conecta por SSH a vm4 con un usuario `respaldo` de permisos mínimos.
 - Respalda la base de datos (`mariadb-dump`) y `wp-content` (tar), con sumas `sha256`.
-- Retención de 30 días en `/srv/respaldos`, copia por `rsync` a vm5 (`/srv/respaldos_vm4/`).
+- Los respaldos se guardan en vm5 (`/srv/respaldos`), separados de vm4, con retención de 30 días.
 - Objetivos: RPO ≤ 24 h, RTO ≤ 60 min.
 
 ## Puntos únicos de falla conocidos
