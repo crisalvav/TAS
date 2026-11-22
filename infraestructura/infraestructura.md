@@ -9,8 +9,8 @@ Para el desarrollo del caso de nodo sur  como equipo decidimos distribuir la org
 | `tas05vm1`       | DNS     | DNS y balanceador de carga | 10.33.199.42 | BIND9 (53), Nginx balanceador HTTPS (80/443)                  |
 | `tas05vm2`       | CMS 1   | CMS principal              | 10.33.199.43 | WordPress PHP-FPM + Nginx (8000)                              |
 | `tas05vm3`       | CMS 2   | CMS, segunda réplica       | 10.33.199.44 | WordPress PHP-FPM + Nginx (8000)                              |
-| `tas05vm4`       | DB      | Base de Datos              | 10.33.199.45 | MariaDB (3306), NFS `wp-content`, mysqld_exporter (9104), respaldos |
-| `tas05vm5`       | Monitor | Monitorización             | 10.33.199.46 | Prometheus (9090), Grafana (3000), Alertmanager (9093), Blackbox exporter, copia de respaldos |
+| `tas05vm4`       | DB      | Base de Datos              | 10.33.199.45 | MariaDB (3306), NFS `wp-content`, mysqld_exporter (9104) |
+| `tas05vm5`       | Monitor | Monitorización y respaldos | 10.33.199.46 | Prometheus (9090), Grafana (3000), Alertmanager (9093), Blackbox exporter, respaldos |
 
 Todas las VM ejecutan `node_exporter` (9100), accesible solo desde `tas05vm5`.
 

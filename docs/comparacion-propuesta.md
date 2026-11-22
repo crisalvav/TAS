@@ -117,10 +117,10 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
           └──────── 3306 (MariaDB) · NFS ────────────┘
                              ▼
 ┌───────────── tas05vm4 · 10.33.199.45 ─────────────┐
-│ MariaDB (sin Docker) · NFS wp-content · respaldos │──rsync──┐
+│ MariaDB (sin Docker) · NFS wp-content             │──rsync──┐
 └────────────────────────────────────────────────────┘        ▼
 ┌───────────── tas05vm5 · 10.33.199.46 ─────────────────────────┐
-│ Prometheus · Alertmanager · Grafana · Blackbox · copia respaldos│
+│ Prometheus · Alertmanager · Grafana · Blackbox · respaldos      │
 └──── consulta 9100 en las 5 VM, 9104 en vm4, /healthz en vm2/vm3 ┘
 ```
 
@@ -129,8 +129,8 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 | `tas05vm1` | DNS y balanceador | BIND9 (53), Nginx (80/443) | Sí |
 | `tas05vm2` | CMS 1 | WordPress PHP-FPM + Nginx (8000) | Sí |
 | `tas05vm3` | CMS 2 | WordPress PHP-FPM + Nginx (8000) | Sí |
-| `tas05vm4` | Datos | MariaDB (3306), NFS, `mysqld_exporter` (9104), respaldos | No |
-| `tas05vm5` | Monitoreo | Prometheus (9090), Grafana (3000), Alertmanager (9093), Blackbox, copia de respaldos | Sí |
+| `tas05vm4` | Datos | MariaDB (3306), NFS, `mysqld_exporter` (9104) | No |
+| `tas05vm5` | Monitoreo y respaldos | Prometheus (9090), Grafana (3000), Alertmanager (9093), Blackbox, respaldos | Sí |
 
 **Puntos únicos de falla:** se mantienen los que el informe ya reconocía, ahora repartidos así:
 

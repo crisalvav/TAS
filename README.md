@@ -36,8 +36,8 @@ Cinco VM con dominio interno `nodosur.tas`. La mayoría de los servicios corren 
 | `tas05vm1` | DNS y balanceador          | 10.33.199.42 | BIND9 (53), Nginx HTTPS (80/443)                        |
 | `tas05vm2` | CMS 1                      | 10.33.199.43 | WordPress PHP-FPM + Nginx (8000)                        |
 | `tas05vm3` | CMS 2                      | 10.33.199.44 | WordPress PHP-FPM + Nginx (8000)                        |
-| `tas05vm4` | Base de datos              | 10.33.199.45 | MariaDB (3306), NFS `wp-content`, respaldos             |
-| `tas05vm5` | Monitorización             | 10.33.199.46 | Prometheus, Grafana, Alertmanager, copia de respaldos   |
+| `tas05vm4` | Base de datos              | 10.33.199.45 | MariaDB (3306), NFS `wp-content`                        |
+| `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana, Alertmanager, respaldos            |
 
 ```
 Cliente ──DNS (vm1:53)──> www.nodosur.tas
