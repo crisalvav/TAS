@@ -40,11 +40,16 @@ Cinco VM con dominio interno `nodosur.tas`. La mayoría de los servicios corren 
 | `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana, Alertmanager, respaldos            |
 
 ```
-Cliente ──DNS (vm1:53)──> www.nodosur.tas
-Cliente ──HTTPS 443──> Nginx balanceador (vm1)
-                          ├──> vm2:8000 (WordPress) ─┐
-                          └──> vm3:8000 (WordPress) ─┼──> MariaDB vm4:3306
-                                                     └──> NFS vm4:/srv/nfs/wp-content
+1) Resolución (solo el nombre, sin tráfico web)
+   Cliente --- consulta DNS 53/UDP ------------> BIND9 (vm1)
+   Cliente <-- www.nodosur.tas = 10.33.199.42 -- BIND9 (vm1)
+
+2) Petición web (conexión directa al balanceador)
+   Cliente --- HTTPS 443 ---> Nginx balanceador (vm1)   (HTTP 80 -> 301)
+                              |  least_conn · 8000/TCP · reintento en el otro backend
+                              +--> vm2:8000 (Nginx + WordPress) --+
+                              +--> vm3:8000 (Nginx + WordPress) --+--> MariaDB vm4:3306
+                                                                  +--> NFS vm4:/srv/nfs/wp-content
 ```
 
 Detalle de puertos, firewall, respaldos y puntos únicos de falla en [`infraestructura/infraestructura.md`](infraestructura/infraestructura.md).
