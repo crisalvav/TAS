@@ -72,7 +72,7 @@ flowchart TB
     LB -- "least_conn" --> WP3
     WP2 --> DB & NFS
     WP3 --> DB & NFS
-    BK -- "SSH 22 · dump + tar" --> VM4
+    DB & NFS <-- "SSH 22 · dump + tar" --- BK
 
     classDef front fill:#e3f2fd,stroke:#1565c0,color:#0d1b2a
     classDef web fill:#e8f5e9,stroke:#2e7d32,color:#0d1b2a
