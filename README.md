@@ -40,23 +40,34 @@ Cinco VM con dominio interno `nodosur.tas`. La mayoría de los servicios corren 
 | `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana, Alertmanager, respaldos            |
 
 ```
-1) Resolución (solo el nombre, sin tráfico web)
-   Cliente --- consulta DNS 53/UDP ---> BIND9 (vm1)
-   Cliente <-- IP 10.33.199.42 -------- BIND9 (vm1)
-
-2) Petición web (directo al balanceador)
-   Cliente --- HTTPS 443 ---> Nginx (vm1)
-                                |  80 -> 301 a HTTPS
-                                |  least_conn · 8000/TCP
-                                |  reintento en el otro nodo
-                    +-----------+-----------+
-                    v                       v
-                vm2:8000                vm3:8000
-            Nginx + WordPress       Nginx + WordPress
-                    |                       |
-                    +-----------+-----------+
-                                v
-              vm4: MariaDB 3306 + NFS wp-content
+                       Clientes
+(1) DNS 53/UDP v ^                       (2) HTTPS 443
+               | |  IP de vm1            |   (80 -> 301)
+               v |                       v
++--------------- tas05vm1 · 10.33.199.42 ----------------+
+| BIND9: solo resuelve      Nginx balanceador TLS        |
++----------------------------------------+---------------+
+       least_conn · 8000/TCP · reintento |
+              +--------------------------+--+
+              v                             v
+ +---- tas05vm2 · .43 ----+    +---- tas05vm3 · .44 ----+
+ | Nginx + PHP-FPM        |    | Nginx + PHP-FPM        |
+ | WordPress/Woo :8000    |    | WordPress/Woo :8000    |
+ +------------+-----------+    +------------+-----------+
+              |    3306 (MariaDB) · NFS     |
+              +--------------+--------------+
+                             v
++--------------- tas05vm4 · 10.33.199.45 ----------------+
+| MariaDB (3306, sin Docker)                             |
+| NFS /srv/nfs/wp-content (datos vivos de vm2/vm3)       |
++----------------------------+---------------------------+
+                             ^ SSH 22 desde vm5: dump + tar
+                             |
++--------------- tas05vm5 · 10.33.199.46 ----------------+
+| Prometheus · Alertmanager · Grafana · Blackbox         |
+| Respaldos: /srv/respaldos (30 días)                    |
++--------------------------------------------------------+
+  vm5 consulta 9100 (todas), 9104 (vm4) y /healthz
 ```
 
 Detalle de puertos, firewall, respaldos y puntos únicos de falla en [`infraestructura/infraestructura.md`](infraestructura/infraestructura.md).
