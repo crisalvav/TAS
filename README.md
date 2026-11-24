@@ -37,7 +37,7 @@ Cinco VM con dominio interno `nodosur.tas`. La mayoría de los servicios corren 
 | `tas05vm2` | CMS 1                      | 10.33.199.43 | WordPress PHP-FPM + Nginx (8000)                        |
 | `tas05vm3` | CMS 2                      | 10.33.199.44 | WordPress PHP-FPM + Nginx (8000)                        |
 | `tas05vm4` | Base de datos              | 10.33.199.45 | MariaDB (3306), NFS `wp-content`                        |
-| `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana, Alertmanager, respaldos            |
+| `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana (métricas y logs), Alertmanager, respaldos |
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 260}}}%%
@@ -63,7 +63,7 @@ flowchart TB
     end
 
     subgraph VM5["📊 tas05vm5 · 10.33.199.46 · monitoreo y respaldos"]
-        MON["Prometheus · Alertmanager<br/>Grafana · Blackbox"]
+        MON["Prometheus · Alertmanager · Blackbox<br/>Grafana: métricas y logs"]
         BK["Respaldos diarios<br/>/srv/respaldos · 30 días"]
     end
 
