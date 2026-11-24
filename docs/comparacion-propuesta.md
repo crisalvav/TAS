@@ -21,7 +21,7 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 | Certificado TLS | "Certificado válido" | CA propia para el dominio interno `nodosur.tas` | Se definió |
 | Detección de backend caído | Health checks activos de HAProxy | Chequeo pasivo de Nginx + reintento + sondas Blackbox | Sí |
 | Monitoreo | Prometheus + Grafana | Prometheus, Grafana, Alertmanager, Blackbox y exporters en vm5 | Se amplió |
-| Logs | Logs centralizados (syslog 6514) | Logs locales en cada VM | Sí (no implementado) |
+| Logs | Logs centralizados (syslog 6514) | Logs visibles en Grafana en vm5 | Sí (sin syslog 6514) |
 | Respaldos | Diarios, 30 días, copia separada | Script diario con `mariadb-dump` + `tar` + `sha256`, respaldos guardados en vm5 | Se cumplió |
 | MFA en WordPress | Propuesto | Sin registro en bitácora | Pendiente |
 | SSH solo con llave | Propuesto | Puerto 22 "habilitado"; sin registro de deshabilitar contraseñas | Pendiente |
@@ -85,11 +85,10 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 - **Implementado en vm5:** Prometheus (retención de 30 días), Alertmanager (correo), Blackbox exporter (sitio público y `/healthz` de cada backend), Grafana (dashboards 1860 y 7362, más un panel propio). En las 5 VM corre `node_exporter` y en vm4 `mysqld_exporter`. Hay alertas `NodoCaido`, `SitioNoResponde`, `DiscoCasiLleno`, `CPUAlta` y `CertificadoPorVencer`, la mayoría con `for: 1m`.
 - **Por qué se amplió:** Blackbox era necesario para compensar la falta de health checks activos en Nginx (2.2), y Alertmanager para cumplir la detección en 5 minutos o menos.
 
-### 2.10 Logs: centralización no implementada
+### 2.10 Logs en Grafana (vm5)
 
 - **Propuesta:** logs centralizados en el Servidor 4 por syslog TLS (puerto 6514).
-- **Implementado:** cada VM conserva sus logs localmente (logs de Nginx en vm1, `docker compose logs` en vm2/vm3, `auth.log`, `ufw.log` y `journalctl`).
-- **Por qué:** no está documentado. En la bitácora de monitoreo los logs quedan "ubicados para la entrega de observabilidad", así que se trata de un pendiente para la entrega 4.
+- **Implementado:** los logs se consultan en Grafana, en vm5, junto con las métricas. No se usa syslog 6514 ni el Servidor 4 para los logs.
 
 ### 2.11 Respaldos
 
@@ -126,7 +125,8 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
                              ^ SSH 22 desde vm5: dump + tar
                              |
 +--------------- tas05vm5 · 10.33.199.46 ----------------+
-| Prometheus · Alertmanager · Grafana · Blackbox         |
+| Prometheus · Alertmanager · Blackbox                   |
+| Grafana: métricas y logs de las VM                     |
 | Respaldos: /srv/respaldos (30 días)                    |
 +--------------------------------------------------------+
   vm5 consulta 9100 (todas), 9104 (vm4) y /healthz
@@ -152,7 +152,7 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 
 | Pendiente | Dónde corresponde |
 | --- | --- |
-| Centralizar logs (o justificar mantenerlos locales) | Entrega 4 · observabilidad |
+| Documentar en la bitácora cómo llegan los logs a Grafana en vm5 | `bitacora/01-servidores/07-monitoreo.md` |
 | Alerta si no existe el respaldo del día (textfile collector) | `bitacora/01-servidores/08-respaldos.md` |
 | Registrar la prueba de RTO con tiempos reales | `bitacora/01-servidores/08-respaldos.md` |
 | Activar MFA en WordPress y documentarlo | Seguridad |
