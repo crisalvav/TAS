@@ -96,7 +96,8 @@ Detalle de puertos, firewall, respaldos y puntos únicos de falla en [`infraestr
 │   ├── 01-servidores/           # Paso a paso de cada instalación (VM, Docker, DNS, MariaDB,
 │   │                            # WordPress + NFS, balanceador HTTPS, monitoreo, respaldos)
 │   ├── 02-repositorio/          # Registro de trabajo sobre el repositorio
-│   └── 03-situaciones_de_error/ # Incidentes y su resolución
+│   ├── 03-situaciones_de_error/ # Incidentes y su resolución
+│   └── 04-pruebas/              # Pruebas de funcionamiento y sus resultados
 ├── decisiones/                  # Registros de decisiones técnicas (estructura, Docker,
 │                                # balanceador, servidor web)
 ├── docs/informe/                # Informe del proyecto (PDF) y entregas
