@@ -1,7 +1,7 @@
 # Comparación: propuesta original vs. proyecto implementado
 
 **Propuesta original:** Informe de diseño y planificación, entrega 1 (`docs/informe/entregas/Informe _TAS_05.pdf`, v1.0, 07/09/2026).
-**Estado actual:** bitácoras de `bitacora/01-servidores/`, decisiones de `decisiones/` e `infraestructura/infraestructura.md` (corte al 23/10/2026, entrega 3).
+**Estado actual:** bitácoras de `bitacora/01-servidores/` y `bitacora/04-pruebas/`, decisiones de `decisiones/` e `infraestructura/infraestructura.md` (corte al 23/10/2026, entrega 3).
 
 Este documento resume qué cambió entre lo que se propuso y lo que finalmente quedó funcionando, por qué cambió y qué quedó pendiente.
 
@@ -11,18 +11,18 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 
 | Área | Propuesta original (v1.0) | Proyecto implementado | ¿Cambió? |
 | --- | --- | --- | --- |
-| Número de servidores | 4 VM | 5 VM (se agrega `tas05vm5` de monitoreo) | Sí |
-| Balanceador | HAProxy | Nginx (proxy inverso con `least_conn`) | Sí |
-| Servidor web de los backends | WordPress en Docker (sin detallar) | Nginx + PHP-FPM, dos contenedores por backend | Se definió |
+| Número de servidores | 4 VM | 5 VM (se agrega `tas05vm5`: monitoreo y segunda base) | Sí |
+| Balanceador | HAProxy | Nginx en round robin 1:1 | Sí |
+| Servidor web de los backends | WordPress en Docker (sin detallar) | WordPress con Apache (`wordpress:latest`), un contenedor por backend, puerto 9000 | Se definió |
 | Flujo DNS | El tráfico web pasaba de BIND9 a HAProxy | BIND9 solo resuelve; el cliente se conecta directo a Nginx | Sí (corrección) |
-| Base de datos | MariaDB en Docker | MariaDB instalada directamente en el sistema | Sí |
+| Base de datos | MariaDB en Docker, un nodo | MariaDB nativa replicada entre vm4 y vm5, con IP virtual (keepalived) | Sí |
 | Redis | En el Servidor 4 (con el puerto 3306 por error) | No implementado | Sí |
-| Persistencia compartida | Mencionada sin mecanismo definido | NFS de `wp-content` desde `tas05vm4` | Se definió |
-| Certificado TLS | "Certificado válido" | CA propia para el dominio interno `nodosur.tas` | Se definió |
-| Detección de backend caído | Health checks activos de HAProxy | Chequeo pasivo de Nginx + reintento + sondas Blackbox | Sí |
-| Monitoreo | Prometheus + Grafana | Prometheus, Grafana, Alertmanager, Blackbox y exporters en vm5 | Se amplió |
-| Logs | Logs centralizados (syslog 6514) | Logs visibles en Grafana en vm5 | Sí (sin syslog 6514) |
-| Respaldos | Diarios, 30 días, copia separada | Script diario con `mariadb-dump` + `tar` + `sha256`, respaldos guardados en vm5 | Se cumplió |
+| Persistencia compartida | Mencionada sin mecanismo definido | NFS de `/var/www/html` completo desde `tas05vm4` | Se definió |
+| Certificado TLS | "Certificado válido" | Certificado propio (`cert.pem`/`key.pem`) para el dominio interno | Se definió |
+| Detección de backend caído | Health checks activos de HAProxy | Chequeo pasivo de Nginx + reintento en el otro backend | Sí |
+| Monitoreo | Prometheus + Grafana | Prometheus + Grafana en vm5, node_exporter en las 5 VM | Se cumplió (sin alertas aún) |
+| Logs | Logs centralizados (syslog 6514) | Consulta manual en cada VM; Loki pendiente | Pendiente |
+| Respaldos | Diarios, 30 días, copia separada | Cada 6 h, 7 días, copia por rsync en vm5 | Parcial |
 | MFA en WordPress | Propuesto | Sin registro en bitácora | Pendiente |
 | SSH solo con llave | Propuesto | Puerto 22 "habilitado"; sin registro de deshabilitar contraseñas | Pendiente |
 
@@ -33,68 +33,70 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 ### 2.1 De 4 a 5 servidores
 
 - **Propuesta:** Servidor 1 (BIND9 + HAProxy), Servidores 2 y 3 (WordPress), Servidor 4 (MariaDB, Redis, logs y respaldos). El monitoreo no tenía un servidor asignado.
-- **Implementado:** se agregó `tas05vm5` (10.33.199.46) para Prometheus, Grafana, Alertmanager y Blackbox exporter. Además guarda la copia separada de los respaldos.
-- **Por qué:** así el monitoreo no compite por recursos con la base de datos y puede detectar la caída de `tas05vm4`. Si el monitoreo viviera en vm4, una caída de ese servidor también apagaría las alertas que deben avisarla.
+- **Implementado:** se agregó `tas05vm5` (10.33.199.46) para Prometheus y Grafana. Además tiene la segunda MariaDB (hoy la principal) y la copia de los respaldos.
+- **Por qué:** así el monitoreo no corre en la misma VM que el NFS y puede detectar la caída de `tas05vm4`, y la base de datos deja de ser un solo nodo. La contrapartida es que vm5 concentra base principal y monitoreo.
 
 ### 2.2 HAProxy → Nginx como balanceador
 
 - **Propuesta:** HAProxy con health checks activos y página de estadísticas.
-- **Implementado:** Nginx 1.27 en contenedor en `tas05vm1`, con `upstream` `least_conn`, `max_fails=3 fail_timeout=10s` y `proxy_next_upstream`. Publica solo por HTTPS, redirige HTTP con 301 y agrega HSTS.
-- **Por qué** (`decisiones/03-balanceador.md`): HAProxy se probó entre el 05/10 y el 06/10. Su configuración de TLS, redirección y cabeceras resultó más larga que la equivalente en Nginx, que el equipo ya usaba en los backends. Con una sola tecnología, cualquier integrante puede leer, validar (`nginx -t`) y diagnosticar las tres capas web.
-- **Qué se perdió y cómo se compensó:** Nginx open source no tiene health checks activos. La primera petición a un backend caído falla, pero `proxy_next_upstream` la reintenta en el otro y el usuario no ve el error. Las sondas de Blackbox a `/healthz` de cada backend generan la alerta en 1 a 2 minutos. Se validó el 13/10/2026 deteniendo cada backend con tráfico continuo: las respuestas siguieron en `200`.
+- **Implementado:** Nginx (`nginx:alpine`) en contenedor en `tas05vm1`, con `upstream` en round robin 1:1 y `max_fails=2 fail_timeout=10s` hacia `vm2:9000` y `vm3:9000`. Publica solo por HTTPS y redirige HTTP con 301.
+- **Por qué** (`decisiones/03-balanceador.md`): HAProxy se probó entre el 05/10 y el 06/10. Su configuración de TLS, redirección y cabeceras resultó más larga que la equivalente en Nginx, que el equipo ya conocía.
+- **Qué se perdió y cómo se compensó:** Nginx open source no tiene health checks activos. La primera petición a un backend caído falla, pero Nginx la reintenta en el otro y el usuario recibe respuesta. Validado el 23/10/2026 (`bitacora/04-pruebas/06-balanceo_1a1.md` y `07-caida_de_un_backend.md`).
 
-### 2.3 Nginx + PHP-FPM en los backends
+### 2.3 WordPress con Apache en los backends
 
 - **Propuesta:** "WordPress (Docker)", sin especificar el servidor web.
-- **Implementado:** en vm2 y vm3 corren dos contenedores, `wordpress:6.6-php8.3-fpm` y `nginx:1.27-alpine`, expuestos en el puerto 8000. Incluyen un endpoint `/healthz` que responde sin pasar por PHP ni por la base de datos.
-- **Por qué** (`decisiones/04-servidor_web.md`): usa menos memoria en VM con recursos acotados (Nginx sirve los archivos estáticos sin cargar PHP), deja la configuración versionada en un solo archivo en vez de `.htaccess`, y permite usar la misma herramienta en el balanceador.
+- **Implementado:** en vm2 y vm3 corre un solo contenedor `wp_app` con `wordpress:latest` (Apache), publicado en el puerto 9000.
+- **Por qué** (`decisiones/04-servidor_web.md`): la vm3 había usado `fpm-alpine` + Nginx y la vm2 Apache. Al compartir los archivos por NFS había que igualarlas (mismo UID 33) y se tomó la imagen de la vm2, que ya tenía el sitio migrado.
 
 ### 2.4 Flujo DNS corregido
 
 - **Propuesta:** el diagrama original mostraba clientes → BIND9 → HAProxy, como si el tráfico web atravesara el DNS. El docente observó este error.
-- **Implementado:** zona interna `nodosur.tas` en BIND9 (vm1). `www` apunta a vm1, y existen registros `cms1`, `cms2`, `db` y `monitor`. El cliente primero resuelve el nombre y después se conecta por HTTPS directamente a Nginx.
+- **Implementado:** BIND9 en vm1 resuelve el nombre hacia vm1, y el cliente se conecta por HTTPS directamente a Nginx. La bitácora de DNS documenta la zona `nodosur.tas`; Nginx atiende `conosurtas05.lan` (**pendiente** confirmar cuál zona está activa).
 - **Por qué:** el DNS solo traduce nombres a IP; no transporta tráfico web.
 
-### 2.5 MariaDB fuera de Docker
+### 2.5 MariaDB fuera de Docker y replicada
 
 - **Propuesta:** "MariaDB (Docker)" en el Servidor 4.
-- **Implementado:** MariaDB instalada con `apt` en vm4, escuchando en 10.33.199.45:3306. El usuario `wp_user` solo puede conectarse desde vm2 y vm3 y solo tiene permisos sobre la base `wordpress`.
-- **Por qué** (`bitacora/01-servidores/04-mariadb.md`): acceso directo al almacenamiento, respaldos más simples y una capa menos en el servicio más crítico. La bitácora remite a `decisiones/02-dockerizacion.md`, pero ese archivo está vacío (ver sección 4).
+- **Implementado:** MariaDB instalada con `apt` en vm4 y vm5, con replicación primario → réplica y keepalived moviendo la IP virtual `10.33.199.41` a la base principal. `promote.sh` deja en escritura a la réplica si la otra base no responde. Hoy la vm5 es la principal y la vm4 su réplica (ver `bitacora/03-situaciones_de_error/04-autopromocion_vm5_keepalived.md`).
+- **Por qué** (`decisiones/02-dockerizacion.md`, `bitacora/01-servidores/04-mariadb.md`): acceso directo al almacenamiento, respaldos y replicación más simples, y keepalived necesita manejar la interfaz del host.
 
 ### 2.6 Redis no implementado
 
 - **Propuesta:** Redis en el Servidor 4. En la versión original se le asignó por error el puerto 3306, que es de MariaDB; el docente lo observó.
 - **Implementado:** Redis no aparece en ninguna bitácora, en la infraestructura ni en el firewall.
-- **Por qué:** no hay una decisión documentada. Las sesiones de WooCommerce se guardan en la base de datos y ambos backends comparten las mismas claves (`AUTH_KEY`, etc.), así que el sitio funciona sin Redis. Conviene registrar esta decisión en `decisiones/` o retomar Redis si las pruebas de carga lo requieren.
+- **Por qué:** no hay una decisión documentada. Las sesiones se guardan en la base de datos y ambos backends comparten el mismo `wp-config.php` (y sus claves) por el NFS, así que el sitio funciona sin Redis. Conviene registrar esta decisión en `decisiones/`.
 
 ### 2.7 Persistencia compartida con NFS
 
 - **Propuesta:** "persistencia compartida" sin definir el mecanismo.
-- **Implementado:** vm4 exporta `/srv/nfs/wp-content` por NFS solo a vm2 y vm3. Ambos backends lo montan en `/mnt/wp-content`. WordPress y WooCommerce se instalaron una sola vez y los dos nodos ven los mismos plugins, temas e imágenes.
-- **Por qué:** era la forma más simple de que una imagen subida en un backend sea visible desde el otro.
+- **Implementado:** vm4 exporta `/srv/wp-data` a la red interna; ambos backends lo montan en `/mnt/wp-data` como `/var/www/html` completo (código, `wp-config.php`, plugins, temas e imágenes).
+- **Por qué:** con volúmenes locales una imagen subida en un backend daba 404 en el otro (ver `bitacora/03-situaciones_de_error/02-archivos_no_compartidos_entre_backends.md`).
 
-### 2.8 Certificado TLS con CA propia
+### 2.8 Certificado TLS
 
 - **Propuesta:** certificado TLS válido, con renovación.
-- **Implementado:** CA propia (`NodoSur CA`) y certificado para `www.nodosur.tas` con SAN, vigente por 397 días. El `ca.crt` se instala en los clientes y en Blackbox. Hay una alerta `CertificadoPorVencer` 15 días antes del vencimiento.
-- **Por qué:** `nodosur.tas` es un dominio interno, así que Let's Encrypt no puede emitirle certificados.
+- **Implementado:** certificado propio montado en Nginx como `certs/cert.pem` y `certs/key.pem`, con TLS 1.2 y 1.3.
+- **Por qué:** el dominio es interno, así que Let's Encrypt no puede emitirle certificados.
+- **Pendiente:** documentar cómo se generó, su vigencia y la renovación.
 
-### 2.9 Monitoreo ampliado
+### 2.9 Monitoreo
 
 - **Propuesta:** Prometheus + Grafana, alertas en 5 minutos o menos.
-- **Implementado en vm5:** Prometheus (retención de 30 días), Alertmanager (correo), Blackbox exporter (sitio público y `/healthz` de cada backend), Grafana (dashboards 1860 y 7362, más un panel propio). En las 5 VM corre `node_exporter` y en vm4 `mysqld_exporter`. Hay alertas `NodoCaido`, `SitioNoResponde`, `DiscoCasiLleno`, `CPUAlta` y `CertificadoPorVencer`, la mayoría con `for: 1m`.
-- **Por qué se amplió:** Blackbox era necesario para compensar la falta de health checks activos en Nginx (2.2), y Alertmanager para cumplir la detección en 5 minutos o menos.
+- **Implementado en vm5:** Prometheus (retención 15 días, solo en `127.0.0.1:9090`) y Grafana (puerto 3000, dashboard 1860). node_exporter en las 5 VM, todos los objetivos en `up` (`bitacora/04-pruebas/08-monitoreo.md`).
+- **Pendiente:** alertas (Alertmanager), `mysqld_exporter` para vigilar la replicación, cAdvisor y exporter de Nginx.
 
-### 2.10 Logs en Grafana (vm5)
+### 2.10 Logs
 
 - **Propuesta:** logs centralizados en el Servidor 4 por syslog TLS (puerto 6514).
-- **Implementado:** los logs se consultan en Grafana, en vm5, junto con las métricas. No se usa syslog 6514 ni el Servidor 4 para los logs.
+- **Implementado:** por ahora se consultan en cada VM (`docker logs`, `journalctl`). No se usa syslog 6514.
+- **Pendiente:** Loki + Promtail para verlos en Grafana.
 
 ### 2.11 Respaldos
 
 - **Propuesta:** respaldos diarios de base de datos, archivos y configuración, retención de 30 días o más, copia separada, RPO ≤ 24 h y RTO ≤ 60 min.
-- **Implementado** (21/10 al 23/10/2026): script `/usr/local/bin/respaldo_nodosur.sh` en vm5, programado con cron a las 03:00. Por SSH a vm4 hace `mariadb-dump --single-transaction` y un `tar` de `wp-content`, guarda ambos en vm5, genera sumas `sha256` y borra lo que tenga más de 30 días. La restauración se probó en una base temporal. La configuración de cada VM se respalda versionándola en Git.
-- **Diferencia:** los respaldos quedan en vm5, separados de la base de datos pero dentro del mismo laboratorio; no es una copia fuera del sitio. Además falta la alerta si el respaldo del día no se generó (pendiente anotado en la bitácora).
+- **Implementado** (21/10/2026): script `/usr/local/bin/backup-db.sh` en vm4, cada 6 horas. Hace `mariadb-dump` de `wordpress`, guarda 7 días en `/var/backups/mariadb` y copia por rsync los dumps y `/srv/wp-data` a vm5 (`~/respaldos`).
+- **Diferencia:** RPO ≈ 6 h (mejor que lo propuesto), pero retención de 7 días (menor a 30). La copia de archivos no tiene historial, no hay `sha256` ni alerta si falla, y la restauración no se ha medido contra el RTO.
 
 ---
 
@@ -108,43 +110,42 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 +--------------- tas05vm1 · 10.33.199.42 ----------------+
 | BIND9: solo resuelve      Nginx balanceador TLS        |
 +----------------------------------------+---------------+
-       least_conn · 8000/TCP · reintento |
+          round robin 1:1 · 9000/TCP     |
               +--------------------------+--+
               v                             v
  +---- tas05vm2 · .43 ----+    +---- tas05vm3 · .44 ----+
- | Nginx + PHP-FPM        |    | Nginx + PHP-FPM        |
- | WordPress/Woo :8000    |    | WordPress/Woo :8000    |
+ | WordPress + Apache     |    | WordPress + Apache     |
+ | wp_app :9000           |    | wp_app :9000           |
  +------------+-----------+    +------------+-----------+
-              |    3306 (MariaDB) · NFS     |
+              |   IP virtual .41:3306 · NFS |
               +--------------+--------------+
                              v
 +--------------- tas05vm4 · 10.33.199.45 ----------------+
-| MariaDB (3306, sin Docker)                             |
-| NFS /srv/nfs/wp-content (datos vivos de vm2/vm3)       |
+| MariaDB réplica (read_only)  · keepalived              |
+| NFS /srv/wp-data · respaldo cada 6 h                   |
 +----------------------------+---------------------------+
-                             ^ SSH 22 desde vm5: dump + tar
-                             |
+          ^ replicación      | rsync de respaldos
+          |                  v
 +--------------- tas05vm5 · 10.33.199.46 ----------------+
-| Prometheus · Alertmanager · Blackbox                   |
-| Grafana: métricas y logs de las VM                     |
-| Respaldos: /srv/respaldos (30 días)                    |
+| MariaDB principal + IP virtual .41 · keepalived        |
+| Prometheus · Grafana · ~/respaldos                     |
 +--------------------------------------------------------+
-  vm5 consulta 9100 (todas), 9104 (vm4) y /healthz
+  vm5 consulta 9100 en todas las VM
 ```
 
 | VM | Rol | Servicios | En contenedor |
 | --- | --- | --- | --- |
 | `tas05vm1` | DNS y balanceador | BIND9 (53), Nginx (80/443) | Sí |
-| `tas05vm2` | CMS 1 | WordPress PHP-FPM + Nginx (8000) | Sí |
-| `tas05vm3` | CMS 2 | WordPress PHP-FPM + Nginx (8000) | Sí |
-| `tas05vm4` | Datos | MariaDB (3306), NFS, `mysqld_exporter` (9104) | No |
-| `tas05vm5` | Monitoreo y respaldos | Prometheus (9090), Grafana (3000), Alertmanager (9093), Blackbox, respaldos | Sí |
+| `tas05vm2` | CMS 1 | WordPress con Apache (9000) | Sí |
+| `tas05vm3` | CMS 2 | WordPress con Apache (9000) | Sí |
+| `tas05vm4` | Réplica, archivos y respaldos | MariaDB réplica, NFS, keepalived, script de respaldo | No |
+| `tas05vm5` | Base principal y monitoreo | MariaDB principal, keepalived, Prometheus, Grafana | Prometheus y Grafana |
 
-**Puntos únicos de falla:** se mantienen los que el informe ya reconocía, ahora repartidos así:
+**Puntos únicos de falla:**
 
-- `tas05vm1`: DNS y balanceador. Mejora futura: segundo Nginx con `keepalived` (VRRP).
-- `tas05vm4`: MariaDB y NFS. Mejora futura: réplica de base de datos.
-- `tas05vm5`: si cae, el servicio sigue funcionando, pero sin alertas.
+- `tas05vm1`: DNS y balanceador. Mejora futura: segundo Nginx con `keepalived` (VRRP), como en la base.
+- `tas05vm4`: NFS de WordPress. La base ya tiene failover; los archivos no.
+- `tas05vm5`: si cae, la base pasa a vm4, pero se pierde el monitoreo.
 
 ---
 
@@ -152,12 +153,16 @@ Este documento resume qué cambió entre lo que se propuso y lo que finalmente q
 
 | Pendiente | Dónde corresponde |
 | --- | --- |
-| Documentar en la bitácora cómo llegan los logs a Grafana en vm5 | `bitacora/01-servidores/07-monitoreo.md` |
-| Alerta si no existe el respaldo del día (textfile collector) | `bitacora/01-servidores/08-respaldos.md` |
-| Registrar la prueba de RTO con tiempos reales | `bitacora/01-servidores/08-respaldos.md` |
+| Registrar el failover real de la base (apagar MariaDB en la principal) | `bitacora/04-pruebas/05-failover_base_de_datos.md` |
+| Registrar la prueba del NFS por `curl` y la prueba de RTO | `bitacora/04-pruebas/` |
+| Alertas, `mysqld_exporter` y Loki | `bitacora/01-servidores/07-monitoreo.md` |
+| Confirmar la zona DNS activa (`nodosur.tas` vs `conosurtas05.lan`) | `bitacora/01-servidores/03-dns_bind9.md` |
+| Sacar las contraseñas de los compose y de `promote.sh` a archivos no versionados | Seguridad |
+| Limitar el export NFS (sin `no_root_squash`) y el puerto 3000 de Grafana | Seguridad · firewall |
+| Fijar versiones de imagen en vez de `latest` | `decisiones/02-dockerizacion.md` |
 | Activar MFA en WordPress y documentarlo | Seguridad |
 | Deshabilitar el acceso SSH por contraseña y limitar el puerto 22 a la red de gestión | Seguridad · firewall |
 | Documentar por qué no se implementó Redis | `decisiones/` |
-| Completar `decisiones/01-estructura_de_servicios.md` y `decisiones/02-dockerizacion.md` (están vacíos y la bitácora de MariaDB remite al segundo) | `decisiones/` |
-| Completar `bitacora/03-situaciones_de_error/01-caida_por_balanceador.md` (vacío; la bitácora de Nginx remite a él) | Incidentes |
-| Alinear el informe v1.1 con lo implementado: menciona Redis, logs por syslog, restic y MariaDB en Docker | `docs/informe/entregas/` |
+| Completar `decisiones/01-estructura_de_servicios.md` (vacío) | `decisiones/` |
+| Completar `bitacora/03-situaciones_de_error/01-caida_por_balanceador.md` | Incidentes |
+| Alinear el informe v1.1 con lo implementado: menciona Redis, logs por syslog, restic, MariaDB en Docker, Alertmanager y Blackbox | `docs/informe/entregas/` |

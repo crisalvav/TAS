@@ -46,6 +46,6 @@ Respaldo local, programación y copia a la vm5 funcionando ✅.
 
 ## Observaciones
 
-- Retención de 7 días y frecuencia de 6 h (RPO ≈ 6 h). Esto difiere de lo descrito en `bitacora/01-servidores/08-respaldos.md` (diario, 30 días, script en vm5); hay que unificar.
+- Retención de 7 días y frecuencia de 6 h (RPO ≈ 6 h). El informe propone 30 días de retención.
 - `rsync -rlt` no conserva el dueño: al restaurar los archivos hay que ejecutar `chown -R 33:33`.
 - **Pendiente:** prueba de restauración desde `~/respaldos` en la vm5 y medición del tiempo frente al RTO.

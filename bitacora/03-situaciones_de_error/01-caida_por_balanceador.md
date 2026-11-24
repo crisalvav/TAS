@@ -1,10 +1,10 @@
 # Caída de la navegación por el certificado del balanceador (13/10/2026 - 14/10/2026)
 
-**Servidor:** `tas05vm1` (10.33.199.42) · **Servicio afectado:** Nginx balanceador (`nginx-lb`), puerto 443 · **Impacto:** no se podía llegar a la página `https://www.nodosur.tas`
+**Servidor:** `tas05vm1` (10.33.199.42 · gestión 10.33.195.230) · **Servicio afectado:** Nginx balanceador (`wp_nginx`), puerto 443 · **Impacto:** no se podía llegar a la página por HTTPS
 
 ## Contexto
 
-El balanceador se había empezado a configurar con HAProxy (prueba del 05/10 al 06/10) y luego se decidió usar Nginx (ver `decisiones/03-balanceador.md`). El certificado TLS se generó el 07/10 con una CA propia (ver `bitacora/01-servidores/06-nginx_balanceador_https.md`).
+El balanceador se había empezado a configurar con HAProxy (prueba del 05/10 al 06/10) y luego se decidió usar Nginx (ver `decisiones/03-balanceador.md`). El certificado TLS se generó el 07/10 y se monta en el contenedor como `certs/cert.pem` y `certs/key.pem` (ver `bitacora/01-servidores/06-nginx_balanceador_https.md`).
 
 ## Qué se observó
 
@@ -26,9 +26,10 @@ Un problema con el certificado TLS durante el cambio de HAProxy a Nginx.
 Para validar:
 
 ```bash
-docker exec nginx-lb nginx -t
-curl --cacert certs/ca.crt -I https://www.nodosur.tas   # 200
-openssl s_client -connect www.nodosur.tas:443 -servername www.nodosur.tas </dev/null | grep -E 'Protocol|subject'
+sudo docker exec wp_nginx nginx -t
+sudo docker logs wp_nginx --tail 20
+curl -skI https://10.33.195.230                          # 200 o 301 de WordPress
+openssl s_client -connect 10.33.195.230:443 -servername conosurtas05.lan </dev/null | grep -E 'Protocol|subject'
 ```
 
 - Fin: _por completar (fecha y hora)_ · Duración aproximada: _por completar_

@@ -55,5 +55,4 @@ Alternancia exacta vm2/vm3 → balanceo 1:1 ✅
 
 ## Observaciones
 
-- Esta configuración (round robin, puerto 9000, `max_fails=2`) difiere de `bitacora/01-servidores/06-nginx_balanceador_https.md` (`least_conn`, puerto 8000, `max_fails=3`); hay que unificar.
 - Al terminar las pruebas se debe quitar `add_header X-Backend` y reiniciar `wp_nginx`.

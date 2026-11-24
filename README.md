@@ -29,15 +29,15 @@ Para lograr esto, el equipo, deberán actuar como un proveedor de infraestructur
 ---
 ## 3. Arquitectura
 
-Cinco VM con dominio interno `nodosur.tas`. La mayoría de los servicios corren en contenedores Docker; MariaDB, NFS y los exporters de sistema van instalados directamente.
+Cinco VM en la red interna `10.33.199.40/29`. La mayoría de los servicios corren en contenedores Docker; MariaDB, NFS, keepalived y `node_exporter` van instalados directamente. La base de datos se replica entre vm4 y vm5 y se accede por la IP virtual `10.33.199.41`.
 
-| VM         | Rol                        | IP           | Servicios principales                                   |
-| ---------- | -------------------------- | ------------ | ------------------------------------------------------- |
-| `tas05vm1` | DNS y balanceador          | 10.33.199.42 | BIND9 (53), Nginx HTTPS (80/443)                        |
-| `tas05vm2` | CMS 1                      | 10.33.199.43 | WordPress PHP-FPM + Nginx (8000)                        |
-| `tas05vm3` | CMS 2                      | 10.33.199.44 | WordPress PHP-FPM + Nginx (8000)                        |
-| `tas05vm4` | Base de datos              | 10.33.199.45 | MariaDB (3306), NFS `wp-content`                        |
-| `tas05vm5` | Monitorización y respaldos | 10.33.199.46 | Prometheus, Grafana (métricas y logs), Alertmanager, respaldos |
+| VM         | Rol                                | IP           | Servicios principales                                   |
+| ---------- | ---------------------------------- | ------------ | ------------------------------------------------------- |
+| `tas05vm1` | DNS y balanceador                  | 10.33.199.42 | BIND9 (53), Nginx HTTPS (80/443)                        |
+| `tas05vm2` | CMS 1                              | 10.33.199.43 | WordPress con Apache (9000)                             |
+| `tas05vm3` | CMS 2                              | 10.33.199.44 | WordPress con Apache (9000)                             |
+| `tas05vm4` | Réplica de la base, NFS, respaldos | 10.33.199.45 | MariaDB réplica (3306), NFS `/srv/wp-data`, keepalived  |
+| `tas05vm5` | Base principal y monitoreo         | 10.33.199.46 | MariaDB principal (3306), keepalived, Prometheus, Grafana (métricas), copia de respaldos |
 
 ```mermaid
 %%{init: {"flowchart": {"wrappingWidth": 260}}}%%
@@ -50,30 +50,36 @@ flowchart TB
     end
 
     subgraph VM2["tas05vm2 · .43 · CMS 1"]
-        WP2["Nginx + PHP-FPM<br/>WordPress · 8000"]
+        WP2["WordPress + Apache<br/>9000"]
     end
 
     subgraph VM3["tas05vm3 · .44 · CMS 2"]
-        WP3["Nginx + PHP-FPM<br/>WordPress · 8000"]
+        WP3["WordPress + Apache<br/>9000"]
     end
 
-    subgraph VM4["🗄 tas05vm4 · 10.33.199.45 · datos"]
-        DB[("MariaDB<br/>3306")]
-        NFS[("NFS<br/>wp-content")]
+    VIP{{"IP virtual<br/>10.33.199.41:3306"}}
+
+    subgraph VM4["🗄 tas05vm4 · 10.33.199.45 · réplica y archivos"]
+        DB4[("MariaDB réplica")]
+        NFS[("NFS<br/>/srv/wp-data")]
+        BK["Respaldo cada 6 h<br/>7 días"]
     end
 
-    subgraph VM5["📊 tas05vm5 · 10.33.199.46 · monitoreo y respaldos"]
-        MON["Prometheus · Alertmanager · Blackbox<br/>Grafana: métricas y logs"]
-        BK["Respaldos diarios<br/>/srv/respaldos · 30 días"]
+    subgraph VM5["📊 tas05vm5 · 10.33.199.46 · base principal y monitoreo"]
+        DB5[("MariaDB principal")]
+        MON["Prometheus · Grafana"]
+        CP["Copia de respaldos<br/>~/respaldos"]
     end
 
     C <-. "1 · consulta DNS → IP de vm1" .-> DNS
     C == "2 · HTTPS 443" ==> LB
-    LB -- "least_conn" --> WP2
-    LB -- "least_conn" --> WP3
-    WP2 --> DB & NFS
-    WP3 --> DB & NFS
-    VM4 -- "vm5 entra por SSH 22 · copia dump + tar" --> VM5
+    LB -- "round robin 1:1" --> WP2
+    LB -- "round robin 1:1" --> WP3
+    WP2 --> VIP & NFS
+    WP3 --> VIP & NFS
+    VIP --> DB5
+    DB5 -- "replicación" --> DB4
+    BK -- "rsync por SSH" --> CP
 
     classDef front fill:#e3f2fd,stroke:#1565c0,color:#0d1b2a
     classDef web fill:#e8f5e9,stroke:#2e7d32,color:#0d1b2a
@@ -81,9 +87,11 @@ flowchart TB
     classDef ops fill:#fff3e0,stroke:#e65100,color:#0d1b2a
     class DNS,LB front
     class WP2,WP3 web
-    class DB,NFS data
-    class MON,BK ops
+    class DB4,DB5,NFS,VIP data
+    class MON,BK,CP ops
 ```
+
+> **Corrección:** en la arquitectura incluimos por error Alertmanager y Blackbox exporter en `tas05vm5`. Esos servicios no forman parte del sistema desplegado; el monitoreo se compone solo de Prometheus y Grafana. El error se corrigió después de la entrega del informe, por lo que el informe entregado aún los menciona.
 
 Detalle de puertos, firewall, respaldos y puntos únicos de falla en [`infraestructura/infraestructura.md`](infraestructura/infraestructura.md).
 
