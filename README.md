@@ -65,6 +65,7 @@ flowchart TB
     subgraph VM5["📊 tas05vm5 · 10.33.199.46 · monitoreo y respaldos"]
         MON["Prometheus · Grafana · Loki"]
         BK["Respaldos diarios<br/>/srv/respaldos · 30 días"]
+        DB5[("MariaDB réplica<br/>slave · 3306")]
     end
 
     C <-. "1 · consulta DNS → IP de vm1" .-> DNS
@@ -74,6 +75,7 @@ flowchart TB
     WP2 --> DB & NFS
     WP3 --> DB & NFS
     VM4 -- "vm5 entra por SSH 22 · copia dump + tar" --> VM5
+    DB -- "replicación" --> DB5
 
     classDef front fill:#e3f2fd,stroke:#1565c0,color:#0d1b2a
     classDef web fill:#e8f5e9,stroke:#2e7d32,color:#0d1b2a
@@ -81,7 +83,7 @@ flowchart TB
     classDef ops fill:#fff3e0,stroke:#e65100,color:#0d1b2a
     class DNS,LB front
     class WP2,WP3 web
-    class DB,NFS data
+    class DB,NFS,DB5 data
     class MON,BK ops
 ```
 
