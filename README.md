@@ -63,7 +63,7 @@ flowchart TB
     end
 
     subgraph VM5["📊 tas05vm5 · 10.33.199.46 · monitoreo y respaldos"]
-        MON["Prometheus · Alertmanager · Blackbox<br/>Grafana: métricas y logs"]
+        MON["Prometheus · Grafana · Loki"]
         BK["Respaldos diarios<br/>/srv/respaldos · 30 días"]
     end
 
